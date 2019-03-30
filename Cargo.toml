@@ -1,0 +1,12 @@
+[package]
+name = "espim"
+version = "0.1.0"
+authors = ["M*C*O <mcofficer@gmx.de>"]
+edition = "2018"
+
+[dependencies]
+git2 = "0.8.0"
+clap = "2.32.0"
+app_dirs = "1.2.1"
+remove_dir_all = "0.5.1"
+symlink = "0.1.0"
