@@ -75,6 +75,14 @@ fn get_plugin_dir() -> PathBuf {
         .join("endless-sky").join("plugins")
 }
 
+fn get_install_path(name: &str) -> PathBuf {
+    get_plugin_dir().join("[ESPIM] ".to_string() + name)
+}
+
+fn is_installed(name: &str) -> bool {
+    get_install_path(name).exists()
+}
+
 fn get_repo_dir(verbose: bool) -> PathBuf {
     let repo_dir = match get_app_dir(AppDataType::UserCache, &APP_INFO, "repo") {
         Ok(repo_dir) => repo_dir,
@@ -139,17 +147,22 @@ fn list(verbose: bool) {
         Ok(repo) => repo,
         Err(e) => panic!("Failed to load Submodules: {}", e),
     };
-    println!("{: ^40}|{:^45}", "Name", "Version");
-    println!("{:-<40}|{:-<45}", "", "");
+    println!("{: ^11}|{: ^40}|{:^45}", "Installed", "Name", "Version");
+    println!("{:-<11}|{:-<40}|{:-<45}", "", "", "");
     for submodule in &submodules {
         let version = submodule.head_id().unwrap().to_string();
-        println!("{: <40}|  {: <43}", submodule.name().unwrap(), version);
+        let installed = if is_installed(submodule.name().unwrap()) { "Yes" } else { "No" };
+        println!("{: ^11}|  {: <38}|  {: <43}", installed, submodule.name().unwrap(), version);
     }
 }
 
 fn install(name: &str, verbose: bool) {
-    let install_name = "[ESPIM] ".to_string() + name;
-    println!("Attempting to install '{}' as '{}'", name, install_name);
+    let install_path = get_install_path(name);
+    println!("Attempting to install '{}' as '{}'", name, install_path.file_name().unwrap().to_string_lossy());
+    if is_installed(name) {
+        println!("Link exists - {} is already installed? Aborting", name);
+        return;
+    }
 
     let repo = open_repo(verbose);
     let mut submodule = match repo.find_submodule(name) {
@@ -162,14 +175,8 @@ fn install(name: &str, verbose: bool) {
     }
 
     let source_path = get_repo_dir(verbose).join(submodule.path());
-    let install_path = get_plugin_dir().join(install_name);
     if verbose {
         println!("Linking '{}' to '{}'", source_path.to_string_lossy(), install_path.to_string_lossy());
-    }
-
-    if install_path.exists() {
-        println!("Link exists - {} is already installed? Aborting", name);
-        return;
     }
 
     if cfg!(windows) {
