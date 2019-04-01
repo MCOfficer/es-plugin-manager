@@ -3,15 +3,12 @@ extern crate clap;
 extern crate git2;
 extern crate remove_dir_all;
 
-use remove_dir_all::remove_dir_all;
-use std::path::Path;
 use std::path::PathBuf;
 
 use app_dirs::*;
 use clap::{App, Arg, SubCommand};
-use git2::ObjectType;
 use git2::Repository;
-use git2::Signature;
+use remove_dir_all::remove_dir_all;
 
 const VERSION: &str = "0.1.0";
 const REPO_URL: &str = "https://github.com/MCOfficer/endless-sky-plugins.git";
@@ -28,7 +25,7 @@ fn main() {
             .about("Updates the local Plug-In repository.")
         )
         .subcommand(SubCommand::with_name("list")
-            .about("Lists all available plug-ins")
+            .about("Lists all available plug-ins.")
         )
         .arg(Arg::with_name("verbose")
             .long("verbose")
@@ -42,13 +39,13 @@ fn main() {
         println!("ESPIM v{}", VERSION);
     }
 
-    if let Some(matches) = matches.subcommand_matches("init") {
+    if let Some(_matches) = matches.subcommand_matches("init") {
         init(verbose);
     }
-    else if let Some(matches) = matches.subcommand_matches("update") {
+    else if let Some(_matches) = matches.subcommand_matches("update") {
         update(verbose);
     }
-    else if let Some(matches) = matches.subcommand_matches("list") {
+    else if let Some(_matches) = matches.subcommand_matches("list") {
         list(verbose);
     }
 }
@@ -64,6 +61,17 @@ fn get_repo_dir(verbose: bool) -> PathBuf {
     repo_dir
 }
 
+fn open_repo(verbose: bool) -> Repository {
+    let repo_dir = get_repo_dir(verbose);
+    if verbose {
+        ("Opening Repository {}", repo_dir.to_string_lossy());
+    };
+    match Repository::open(repo_dir.as_path()) {
+        Ok(repo) => repo,
+        Err(e) => panic!("Failed to open Repository: {}", e),
+    }
+}
+
 fn init(verbose: bool) {
     let repo_dir = get_repo_dir(verbose);
     if repo_dir.exists() {
@@ -74,7 +82,7 @@ fn init(verbose: bool) {
         println!("Cloning {} into {}", REPO_URL, repo_dir.to_string_lossy());
     }
 
-    let repo = match Repository::clone(REPO_URL, repo_dir) {
+    match Repository::clone(REPO_URL, repo_dir) {
         Ok(repo) => repo,
         Err(e) => panic!("Failed to Clone Repository: {}", e),
     };
@@ -85,7 +93,7 @@ fn init(verbose: bool) {
 fn update(verbose: bool) {
     let repo_dir = get_repo_dir(verbose);
     if !repo_dir.exists() && verbose {
-        println!("Repo directory does not exist.");
+        println!("Repo directory does not exist. Did you run 'espim init'?");
         return;
     }
     if verbose {
@@ -101,19 +109,7 @@ fn update(verbose: bool) {
 }
 
 fn list(verbose: bool) {
-    let repo_dir = get_repo_dir(verbose);
-    if !repo_dir.exists() && verbose {
-        println!("Repo directory does not exist.");
-        return;
-    }
-    if verbose {
-        ("Opening Repository {}", repo_dir.to_string_lossy());
-    };
-
-    let repo = match Repository::open(repo_dir.as_path()) {
-        Ok(repo) => repo,
-        Err(e) => panic!("Failed to open Repository: {}", e),
-    };
+    let repo = open_repo(verbose);
     let submodules = match repo.submodules() {
         Ok(repo) => repo,
         Err(e) => panic!("Failed to load Submodules: {}", e),
