@@ -146,7 +146,7 @@ fn list(verbose: bool) {
 
 fn install(name: &str, verbose: bool) {
     let install_name = "[ESPIM] ".to_string() + name;
-    println!("Attempting to install {} as {}", name, install_name);
+    println!("Attempting to install '{}' as '{}'", name, install_name);
 
     let repo = open_repo(verbose);
     let mut submodule = match repo.find_submodule(name) {
