@@ -55,17 +55,13 @@ fn main() {
 
     if let Some(_matches) = matches.subcommand_matches("init") {
         init(verbose);
-    }
-    else if let Some(_matches) = matches.subcommand_matches("update") {
+    } else if let Some(_matches) = matches.subcommand_matches("update") {
         update(verbose);
-    }
-    else if let Some(_matches) = matches.subcommand_matches("list") {
+    } else if let Some(_matches) = matches.subcommand_matches("list") {
         list(verbose);
-    }
-    else if let Some(matches) = matches.subcommand_matches("install") {
+    } else if let Some(matches) = matches.subcommand_matches("install") {
         install(matches.value_of("PLUGIN").unwrap(), verbose);
-    }
-    else {
+    } else {
         println!("See espim -h for help");
     }
 }
@@ -84,10 +80,8 @@ fn is_installed(name: &str) -> bool {
 }
 
 fn get_repo_dir(verbose: bool) -> PathBuf {
-    let repo_dir = match get_app_dir(AppDataType::UserCache, &APP_INFO, "repo") {
-        Ok(repo_dir) => repo_dir,
-        Err(e) => panic!("app_dirs failed with an error: {}", e),
-    };
+    let repo_dir = get_app_dir(AppDataType::UserCache, &APP_INFO, "repo")
+        .expect("app_dirs failed with an error");
     if verbose {
         println!("app_dirs returned {} as repo directory", repo_dir.to_string_lossy());
     }
@@ -99,10 +93,7 @@ fn open_repo(verbose: bool) -> Repository {
     if verbose {
         ("Opening Repository {}", repo_dir.to_string_lossy());
     };
-    match Repository::open(repo_dir.as_path()) {
-        Ok(repo) => repo,
-        Err(e) => panic!("Failed to open Repository: {}", e),
-    }
+    Repository::open(repo_dir.as_path()).expect("Failed to open Repository")
 }
 
 fn init(verbose: bool) {
@@ -115,10 +106,7 @@ fn init(verbose: bool) {
         println!("Cloning {} into {}", REPO_URL, repo_dir.to_string_lossy());
     }
 
-    match Repository::clone(REPO_URL, repo_dir) {
-        Ok(repo) => repo,
-        Err(e) => panic!("Failed to Clone Repository: {}", e),
-    };
+    Repository::clone(REPO_URL, repo_dir).expect("Failed to Clone Repository");
 
     println!("Done.")
 }
@@ -134,19 +122,13 @@ fn update(verbose: bool) {
         println!("Removing directory {}", repo_dir.to_string_lossy())
     }
 
-    match remove_dir_all(repo_dir) {
-        Ok(o) => o,
-        Err(e) => panic!("Failed to remove the repo directory: {}", e)
-    };
+    remove_dir_all(repo_dir).expect("Failed to remove the repo directory");
     init(verbose);
 }
 
 fn list(verbose: bool) {
     let repo = open_repo(verbose);
-    let submodules = match repo.submodules() {
-        Ok(repo) => repo,
-        Err(e) => panic!("Failed to load Submodules: {}", e),
-    };
+    let submodules = repo.submodules().expect("Failed to load Submodules");
     println!("{: ^11}|{: ^40}|{:^45}", "Installed", "Name", "Version");
     println!("{:-<11}|{:-<40}|{:-<45}", "", "", "");
     for submodule in &submodules {
@@ -158,25 +140,22 @@ fn list(verbose: bool) {
 
 fn install(name: &str, verbose: bool) {
     let install_path = get_install_path(name);
-    println!("Attempting to install '{}' as '{}'", name, install_path.file_name().unwrap().to_string_lossy());
+    println!("Attempting to install '{}' as '{}'",
+             name, install_path.file_name().unwrap().to_string_lossy());
     if is_installed(name) {
         println!("Link exists - {} is already installed? Aborting", name);
         return;
     }
 
     let repo = open_repo(verbose);
-    let mut submodule = match repo.find_submodule(name) {
-        Ok(submodule) => submodule,
-        Err(e) => panic!("Plug-In not found in submodules: {}", e),
-    };
-    match submodule.update(true, None) {
-        Ok(submodule) => submodule,
-        Err(e) => panic!("Failed to update submodule: {}", e),
-    }
+    let mut submodule = repo.find_submodule(name)
+        .expect("Plug-In not found in submodules");
+    submodule.update(true, None).expect("Failed to update submodule");
 
     let source_path = get_repo_dir(verbose).join(submodule.path());
     if verbose {
-        println!("Linking '{}' to '{}'", source_path.to_string_lossy(), install_path.to_string_lossy());
+        println!("Linking '{}' to '{}'",
+                 source_path.to_string_lossy(), install_path.to_string_lossy());
     }
 
     if cfg!(windows) {
@@ -184,7 +163,8 @@ fn install(name: &str, verbose: bool) {
             println!("Using Windows workaround");
         }
         let status = Command::new("cmd")
-            .args(&["/C", "mklink", "/D", install_path.to_str().unwrap(), source_path.to_str().unwrap()])
+            .args(&["/C", "mklink", "/D",
+                install_path.to_str().unwrap(), source_path.to_str().unwrap()])
             .status()
             .expect("Failed to create Symlink");
         if verbose {
