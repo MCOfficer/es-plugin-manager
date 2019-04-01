@@ -14,7 +14,7 @@ use symlink::{remove_symlink_dir, symlink_dir};
 use dirs::data_dir;
 use runas::Command;
 
-const VERSION: &str = "0.1.0";
+const VERSION: &str = "0.2.0";
 const REPO_URL: &str = "https://github.com/MCOfficer/endless-sky-plugins.git";
 const APP_INFO: AppInfo = AppInfo{name: "ESPIM", author: "MCOfficer"};
 
