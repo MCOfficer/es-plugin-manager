@@ -12,7 +12,7 @@ use app_dirs::*;
 use clap::{App, Arg, SubCommand};
 use git2::Repository;
 use remove_dir_all::remove_dir_all;
-use symlink::symlink_dir;
+use symlink::{remove_symlink_dir, symlink_dir};
 use dirs::data_dir;
 use runas::Command;
 
@@ -41,6 +41,15 @@ fn main() {
                 .index(1)
             )
         )
+        .subcommand(SubCommand::with_name("remove")
+            .about("Removes a plug-in. The Plug-In stays on the disk, but is removed from the plug-in folder.")
+            .alias("uninstall")
+            .arg(Arg::with_name("PLUGIN")
+                .help("The plug-in to remove.")
+                .required(true)
+                .index(1)
+            )
+        )
         .arg(Arg::with_name("verbose")
             .long("verbose")
             .short("v")
@@ -61,6 +70,8 @@ fn main() {
         list(verbose);
     } else if let Some(matches) = matches.subcommand_matches("install") {
         install(matches.value_of("PLUGIN").unwrap(), verbose);
+    } else if let Some(matches) = matches.subcommand_matches("remove") {
+        remove(matches.value_of("PLUGIN").unwrap(), verbose);
     } else {
         println!("See espim -h for help");
     }
@@ -179,4 +190,18 @@ fn install(name: &str, verbose: bool) {
     }
 
     println!("Done.")
+}
+
+fn remove(name: &str, verbose: bool) {
+    if !is_installed(name) {
+        println!("Link does not exist - {} is not installed? Aborting", name);
+        return;
+    }
+    let link = get_install_path(name);
+    if verbose {
+        println!("Removing Symlink '{}'", link.to_string_lossy());
+    }
+
+    remove_symlink_dir(link).expect("Failed to remove Symlink");
+    println!("Done.");
 }
