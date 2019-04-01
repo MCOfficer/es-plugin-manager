@@ -65,6 +65,9 @@ fn main() {
     else if let Some(matches) = matches.subcommand_matches("install") {
         install(matches.value_of("PLUGIN").unwrap(), verbose);
     }
+    else {
+        println!("See espim -h for help");
+    }
 }
 
 fn get_plugin_dir() -> PathBuf {
