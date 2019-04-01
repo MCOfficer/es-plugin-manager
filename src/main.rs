@@ -1,7 +1,6 @@
 extern crate app_dirs;
 extern crate clap;
 extern crate git2;
-extern crate remove_dir_all;
 extern crate symlink;
 extern crate dirs;
 extern crate runas;
@@ -11,7 +10,6 @@ use std::path::PathBuf;
 use app_dirs::*;
 use clap::{App, Arg, SubCommand};
 use git2::Repository;
-use remove_dir_all::remove_dir_all;
 use symlink::{remove_symlink_dir, symlink_dir};
 use dirs::data_dir;
 use runas::Command;
@@ -128,13 +126,27 @@ fn update(verbose: bool) {
         println!("Repo directory does not exist. Did you run 'espim init'?");
         return;
     }
-    if verbose {
-        println!("This actually removes the current repo and re-clones it. Sue me.");
-        println!("Removing directory {}", repo_dir.to_string_lossy())
-    }
 
-    remove_dir_all(repo_dir).expect("Failed to remove the repo directory");
-    init(verbose);
+    let repo = open_repo(verbose);
+    let mut remote = repo.find_remote("origin").expect("Failed to find remote 'origin'");
+    remote.fetch(&["master"], None, None).expect("Failed to fetch repository");
+
+    let mut master_ref = repo.find_reference("refs/heads/master")
+        .expect("Failed to get master reference");
+    let remote_master_ref = repo.find_reference("refs/remotes/origin/master")
+        .expect("Failed to get remote master reference");
+    let remote_master_commit = remote_master_ref.peel_to_commit()
+        .expect("Failed to peel remote master reference");
+
+    repo.checkout_tree(remote_master_commit.as_object(), None)
+        .expect("Failed to checkout tree");
+    master_ref.set_target(remote_master_commit.id(), "Fast-Forwarding")
+        .expect("Failed to set master ref target");
+    let mut head = repo.head().expect("Failed to find HEAD"); // By now, the reference is stale
+    head.set_target(remote_master_commit.id(), "Fast-Forwarding")
+        .expect("Failed to set HEAD target");
+
+    println!("Done.");
 }
 
 fn list(verbose: bool) {
