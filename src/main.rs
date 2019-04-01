@@ -139,8 +139,11 @@ fn list(verbose: bool) {
         Ok(repo) => repo,
         Err(e) => panic!("Failed to load Submodules: {}", e),
     };
+    println!("{: ^40}|{:^45}", "Name", "Version");
+    println!("{:-<40}|{:-<45}", "", "");
     for submodule in &submodules {
-        println!("- {}", submodule.name().unwrap());
+        let version = submodule.head_id().unwrap().to_string();
+        println!("{: <40}|  {: <43}", submodule.name().unwrap(), version);
     }
 }
 
