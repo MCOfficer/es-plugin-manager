@@ -2,6 +2,9 @@ extern crate app_dirs;
 extern crate clap;
 extern crate git2;
 extern crate remove_dir_all;
+extern crate symlink;
+extern crate dirs;
+extern crate runas;
 
 use std::path::PathBuf;
 
@@ -9,6 +12,9 @@ use app_dirs::*;
 use clap::{App, Arg, SubCommand};
 use git2::Repository;
 use remove_dir_all::remove_dir_all;
+use symlink::symlink_dir;
+use dirs::data_dir;
+use runas::Command;
 
 const VERSION: &str = "0.1.0";
 const REPO_URL: &str = "https://github.com/MCOfficer/endless-sky-plugins.git";
@@ -26,6 +32,14 @@ fn main() {
         )
         .subcommand(SubCommand::with_name("list")
             .about("Lists all available plug-ins.")
+        )
+        .subcommand(SubCommand::with_name("install")
+            .about("Installs a plug-in.")
+            .arg(Arg::with_name("PLUGIN")
+                .help("The Plug-In to install.")
+                .required(true)
+                .index(1)
+            )
         )
         .arg(Arg::with_name("verbose")
             .long("verbose")
@@ -48,6 +62,14 @@ fn main() {
     else if let Some(_matches) = matches.subcommand_matches("list") {
         list(verbose);
     }
+    else if let Some(matches) = matches.subcommand_matches("install") {
+        install(matches.value_of("PLUGIN").unwrap(), verbose);
+    }
+}
+
+fn get_plugin_dir() -> PathBuf {
+    data_dir().expect("dirs failed to find data_dir")
+        .join("endless-sky").join("plugins")
 }
 
 fn get_repo_dir(verbose: bool) -> PathBuf {
@@ -117,4 +139,51 @@ fn list(verbose: bool) {
     for submodule in &submodules {
         println!("- {}", submodule.name().unwrap());
     }
+}
+
+fn install(name: &str, verbose: bool) {
+    let install_name = "[ESPIM] ".to_string() + name;
+    println!("Attempting to install {} as {}", name, install_name);
+
+    let repo = open_repo(verbose);
+    let mut submodule = match repo.find_submodule(name) {
+        Ok(submodule) => submodule,
+        Err(e) => panic!("Plug-In not found in submodules: {}", e),
+    };
+    match submodule.update(true, None) {
+        Ok(submodule) => submodule,
+        Err(e) => panic!("Failed to update submodule: {}", e),
+    }
+
+    let source_path = get_repo_dir(verbose).join(submodule.path());
+    let install_path = get_plugin_dir().join(install_name);
+    if verbose {
+        println!("Linking '{}' to '{}'", source_path.to_string_lossy(), install_path.to_string_lossy());
+    }
+
+    if install_path.exists() {
+        println!("Link exists - {} is already installed? Aborting", name);
+        return;
+    }
+
+    if cfg!(windows) {
+        if verbose {
+            println!("Using Windows workaround");
+        }
+        let status = Command::new("cmd")
+            .args(&["/C", "mklink", "/D", install_path.to_str().unwrap(), source_path.to_str().unwrap()])
+            .status()
+            .expect("Failed to create Symlink");
+        if verbose {
+            println!("mklink status: '{}'", status.to_string())
+        }
+        if !status.success() {
+            panic!("mklink returned non-zero exit status - Failed to create Symlink")
+        }
+    } else {
+        symlink_dir(source_path, install_path)
+            .expect("Failed to create Symlink");
+    }
+
+    println!("Done.")
 }
