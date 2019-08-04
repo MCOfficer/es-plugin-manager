@@ -3,7 +3,6 @@ extern crate clap;
 extern crate dirs;
 extern crate runas;
 extern crate symlink;
-extern crate yaml_rust;
 
 use std::path::PathBuf;
 
