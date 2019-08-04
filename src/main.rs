@@ -1,8 +1,10 @@
 extern crate app_dirs;
 extern crate clap;
 extern crate dirs;
+extern crate reqwest;
 extern crate runas;
 extern crate symlink;
+extern crate yaml_rust;
 
 use std::path::PathBuf;
 
@@ -10,12 +12,17 @@ use app_dirs::*;
 use clap::{App, Arg, SubCommand};
 use dirs::data_dir;
 use runas::Command;
+use std::fs::create_dir_all;
+use std::fs::File;
+use std::io::{Read, Write};
 use symlink::{remove_symlink_dir, symlink_dir};
+use yaml_rust::{Yaml, YamlLoader};
 
 mod git;
 
 const VERSION: &str = "0.2.0";
-const REPO_URL: &str = "https://github.com/MCOfficer/endless-sky-plugins.git";
+const INDEX_URL: &str =
+    "https://raw.githubusercontent.com/MCOfficer/es-plugin-manager/master/plugins.yml";
 const APP_INFO: AppInfo = AppInfo {
     name: "ESPIM",
     author: "MCOfficer",
@@ -25,9 +32,6 @@ fn main() {
     let matches = App::new("Endless Sky Plug-In Manager")
         .version(VERSION)
         .about("A Proof-of-Concept Plug-In Manager for Endless Sky.")
-        .subcommand(SubCommand::with_name("init")
-            .about("Clones the plug-in repository. Use before anything else.")
-        )
         .subcommand(SubCommand::with_name("update")
             .about("Updates the local plug-in repository.")
         )
@@ -66,9 +70,7 @@ fn main() {
         println!("ESPIM v{}", VERSION);
     }
 
-    if let Some(_matches) = matches.subcommand_matches("init") {
-        init(verbose);
-    } else if let Some(_matches) = matches.subcommand_matches("update") {
+    if let Some(_matches) = matches.subcommand_matches("update") {
         update(verbose);
     } else if let Some(_matches) = matches.subcommand_matches("upgrade") {
         upgrade(verbose);
@@ -83,78 +85,125 @@ fn main() {
     }
 }
 
-fn get_plugin_dir() -> PathBuf {
-    data_dir()
+fn get_es_plugin_dir(verbose: bool) -> PathBuf {
+    let dir = data_dir()
         .expect("dirs failed to find data_dir")
         .join("endless-sky")
-        .join("plugins")
+        .join("plugins");
+    if verbose {
+        println!(
+            "app_dirs returned {} as ES plugin directory",
+            dir.to_string_lossy()
+        );
+    }
+    dir
 }
 
-fn get_install_path(name: &str) -> PathBuf {
-    get_plugin_dir().join("[ESPIM] ".to_string() + name)
-}
-
-fn is_installed(name: &str) -> bool {
-    get_install_path(name).exists()
-}
-
-fn get_repo_dir(verbose: bool) -> PathBuf {
-    let repo_dir = get_app_dir(AppDataType::UserCache, &APP_INFO, "repo")
+fn get_espim_plugin_dir(verbose: bool) -> PathBuf {
+    let dir = get_app_dir(AppDataType::UserCache, &APP_INFO, "plugins")
         .expect("app_dirs failed with an error");
     if verbose {
         println!(
             "app_dirs returned {} as repo directory",
+            dir.to_string_lossy()
+        );
+    }
+    dir
+}
+
+fn get_install_path(name: &str, verbose: bool) -> PathBuf {
+    get_es_plugin_dir(verbose).join("[ESPIM] ".to_string() + name)
+}
+
+fn get_repo_path(name: &str, verbose: bool) -> PathBuf {
+    let path = get_espim_plugin_dir(verbose).join(name);
+    if !path.exists() {
+        create_dir_all(&path.parent().unwrap()).expect("Failed to create ESPIM directory");
+    }
+    path
+}
+
+fn is_installed(name: &str, verbose: bool) -> bool {
+    get_install_path(name, verbose).exists() && get_repo_path(name, verbose).exists()
+}
+
+fn fetch_url_contents(url: &str, verbose: bool) -> Result<String, reqwest::Error> {
+    if verbose {
+        println!("Attempting to fetch content of {}", url);
+    }
+    reqwest::get(INDEX_URL)?.text()
+}
+
+fn get_index_path(verbose: bool) -> PathBuf {
+    let repo_dir = get_app_dir(AppDataType::UserCache, &APP_INFO, "plugins.yml")
+        .expect("app_dirs failed with an error");
+    if verbose {
+        println!(
+            "app_dirs returned {} as index file path",
             repo_dir.to_string_lossy()
         );
     }
     repo_dir
 }
 
-fn init(verbose: bool) {
-    let repo_dir = get_repo_dir(verbose);
-    if repo_dir.exists() {
-        println!("Repo Directory already exists. Did you run this command before?");
-        return;
+fn update_index(verbose: bool) {
+    println!("Getting latest index");
+    let index_path = get_index_path(verbose);
+    match fetch_url_contents(INDEX_URL, verbose) {
+        Err(e) => {
+            println!("Error fetching index: {}", e);
+        }
+        Ok(content) => {
+            if verbose {
+                println!("Writing to {}", index_path.to_string_lossy());
+            }
+            let mut file = File::create(index_path.as_path()).expect("Failed to open index file");
+            file.write_all(content.as_bytes())
+                .expect("Failed to write to index file");
+        }
     }
+}
+
+fn get_index(verbose: bool) -> Yaml {
+    let index_path = get_index_path(verbose);
+    update_index(verbose);
     if verbose {
-        println!("Cloning {} into {}", REPO_URL, repo_dir.to_string_lossy());
+        println!("Reading index from {}", index_path.to_string_lossy());
     }
-    git::clone(REPO_URL, repo_dir);
-    println!("Done.")
+    let mut contents = String::new();
+    File::open(index_path.as_path())
+        .expect("Failed to open index file")
+        .read_to_string(&mut contents)
+        .expect("Failed to read from index file");
+    YamlLoader::load_from_str(contents.as_str()).expect("Failed to parse index file as YAML")[0]
+        .clone()
 }
 
 fn update(verbose: bool) {
-    let repo_dir = get_repo_dir(verbose);
-    if !repo_dir.exists() && verbose {
-        println!("Repo directory does not exist. Did you run 'espim init'?");
-        return;
-    }
-    git::update_repo(repo_dir, verbose);
-    println!("Done.");
+    update_index(verbose);
+    println!("Done");
 }
 
 fn upgrade(verbose: bool) {
-    let repo = git::open_repo(get_repo_dir(verbose), verbose);
-    let submodules = repo.submodules().expect("Failed to load Submodules");
-    for mut submodule in submodules {
-        if is_installed(submodule.name().unwrap()) {
-            println!("=> Updating {}", submodule.name().unwrap().to_string());
-            submodule
-                .update(true, None)
-                .expect("Failed to update submodule");
+    let index = get_index(verbose);
+    for plugin in index.as_vec().expect("Index is not an array") {
+        let name = plugin["name"].as_str().unwrap();
+        let version = plugin["version"].as_str().unwrap();
+        if is_installed(name, verbose) {
+            println!("\n{} -> {}", name, version);
+            git::checkout_repo_at(&get_repo_path(name, verbose),version , verbose);
         }
     }
-    println!("Done.")
+    println!("\nDone.")
 }
 
 fn list(verbose: bool) {
-    let repo = git::open_repo(get_repo_dir(verbose), verbose);
-    let submodules = repo.submodules().expect("Failed to load Submodules");
+    let index = get_index(verbose);
     println!("{: ^11}|{: ^40}|{:^45}", "Installed", "Name", "Version");
     println!("{:-<11}|{:-<40}|{:-<45}", "", "", "");
-    for submodule in &submodules {
-        let version = submodule.head_id().unwrap().to_string();
-        let installed = if is_installed(submodule.name().unwrap()) {
+    for plugin in index.as_vec().expect("Index is not an array") {
+        let name = plugin["name"].as_str().unwrap();
+        let installed = if is_installed(name, false) {
             "Yes"
         } else {
             "No"
@@ -162,41 +211,51 @@ fn list(verbose: bool) {
         println!(
             "{: ^11}|  {: <38}|  {: <43}",
             installed,
-            submodule.name().unwrap(),
-            version
+            name,
+            plugin["version"].as_str().unwrap()
         );
     }
 }
 
-fn install(name: &str, verbose: bool) {
-    let install_path = get_install_path(name);
+fn install(identifier: &str, verbose: bool) {
+    let index = get_index(verbose);
+    let plugins = index.as_vec().expect("Index is not an array");
+    let plugin = plugins
+        .iter()
+        .find(|&x| x["name"].as_str().unwrap() == identifier)
+        .unwrap_or_else(|| {
+            plugins
+                .iter()
+                .find(|&x| x["name"].as_str().unwrap().to_lowercase() == identifier.to_lowercase())
+                .expect("Plug-In not found")
+        });
+    let name = plugin["name"].as_str().unwrap();
+    let url = plugin["url"].as_str().unwrap();
+
+    let repo_path = get_repo_path(name, verbose);
+    let link_path = get_install_path(name, verbose);
     println!(
         "Attempting to install '{}' as '{}'",
         name,
-        install_path.file_name().unwrap().to_string_lossy()
+        link_path.file_name().unwrap().to_string_lossy()
     );
-    if is_installed(name) {
-        println!("Link exists - {} is already installed? Aborting", name);
+    if is_installed(name, verbose) {
+        println!("{} is already installed? Aborting", name);
         return;
     }
 
-    let repo = git::open_repo(get_repo_dir(verbose), verbose);
-    let mut submodule = repo
-        .find_submodule(name)
-        .expect("Plug-In not found in submodules");
-    submodule
-        .update(true, None)
-        .expect("Failed to update submodule");
+    if !repo_path.exists() {
+        git::clone(url, &repo_path);
+    }
+    git::checkout_repo_at(&repo_path, plugin["version"].as_str().unwrap(), verbose);
 
-    let source_path = get_repo_dir(verbose).join(submodule.path());
     if verbose {
         println!(
             "Linking '{}' to '{}'",
-            source_path.to_string_lossy(),
-            install_path.to_string_lossy()
+            repo_path.to_string_lossy(),
+            link_path.to_string_lossy()
         );
     }
-
     if cfg!(windows) {
         if verbose {
             println!("Using Windows workaround");
@@ -206,8 +265,8 @@ fn install(name: &str, verbose: bool) {
                 "/C",
                 "mklink",
                 "/D",
-                install_path.to_str().unwrap(),
-                source_path.to_str().unwrap(),
+                link_path.to_str().unwrap(),
+                repo_path.to_str().unwrap(),
             ])
             .status()
             .expect("Failed to create Symlink");
@@ -218,18 +277,18 @@ fn install(name: &str, verbose: bool) {
             panic!("mklink returned non-zero exit status - Failed to create Symlink")
         }
     } else {
-        symlink_dir(source_path, install_path).expect("Failed to create Symlink");
+        symlink_dir(repo_path, link_path).expect("Failed to create Symlink");
     }
 
     println!("Done.")
 }
 
 fn remove(name: &str, verbose: bool) {
-    if !is_installed(name) {
-        println!("Link does not exist - {} is not installed? Aborting", name);
+    if !is_installed(name, verbose) {
+        println!("{} is not installed? Aborting", name);
         return;
     }
-    let link = get_install_path(name);
+    let link = get_install_path(name, verbose);
     if verbose {
         println!("Removing Symlink '{}'", link.to_string_lossy());
     }
