@@ -1,0 +1,35 @@
+- name: all-content-plugin
+  version: a2f7175d89ea205377b4cbf1e044e1d41187b202
+  author: Michael Zahniser
+  description: High-DPI graphics for Endless Sky.
+  url: https://github.com/endless-sky/all-content-plugin.git
+- name: endless-sky-high-dpi
+  version: eb7c808e1b19db24ab0cdf427d8303afc6f4ee36
+  author: Michael Zahniser
+  description: Endless Sky plugin giving the player access to all ships and outfits.
+  url: https://github.com/endless-sky/endless-sky-high-dpi.git
+- name: world-forge
+  version: e9dfb35a76298b376a0cddae62fb113941a903ec
+  author: Wrzlprnft, Amazinite
+  description: A plugin for Endless Sky that allows the player to access everything in the game in one place. Includes features that the all-content plugin does not such as the ability to boost your combat rating and change your friendly/hostile status with factions of the game without having to save-edit. Intended to help content creators test their plugins.
+  url: https://github.com/EndlessSkyCommunity/world-forge.git
+- name: hand-to-hand-outfits
+  version: 07b67252b7f34babc37960c1c132d99cfad854e3
+  author: tmbutterworth
+  description: Endless Sky Plug-in that adds additional hand-to-hand outfits.
+  url: https://github.com/tmbutterworth/hand-to-hand-outfits.git
+- name: Adamas-Project
+  version: a28a28bd7f928df4365c37c7671ceb711bb7474f
+  author: toilethinges
+  description: The Adamas Project is a medium-sized plugin introducing two alien species and their regions of space, as well as some storyline involving the two.
+  url: https://github.com/toilethinges/Adamas-Project.git
+- name: Eternals
+  version: v0.8.8
+  author: comnom
+  description: This plugin introduces two new factions northeast of Unfettered Hai territory. Each faction has their own unique ships and share a set of outfits. This is a work in progress, so check the website for updates!
+  url: https://github.com/comnom/Eternals.git
+- name: The-Enclave
+  version: v0.0.10
+  author: Makuta-Miras
+  description: The Enclave is a story-driven plugin focused on the discovery of an isolated group of humans stranded, hundreds of years ago, in another galaxy.
+  url: https://github.com/Makuta-Miras/The-Enclave
