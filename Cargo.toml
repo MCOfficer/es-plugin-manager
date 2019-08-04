@@ -5,9 +5,9 @@ authors = ["M*C*O <mcofficer@gmx.de>"]
 edition = "2018"
 
 [dependencies]
-git2 = "0.8.0"
-clap = "2.32.0"
+git2 = "0.9.2"
+clap = "2.33.0"
 app_dirs = "1.2.1"
 symlink = "0.1.0"
-dirs = "1.0.5"
+dirs = "2.0.2"
 runas = "0.1.4"
