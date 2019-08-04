@@ -1,8 +1,10 @@
 extern crate app_dirs;
 extern crate clap;
 extern crate dirs;
+extern crate reqwest;
 extern crate runas;
 extern crate symlink;
+extern crate yaml_rust;
 
 use std::path::PathBuf;
 
@@ -10,12 +12,17 @@ use app_dirs::*;
 use clap::{App, Arg, SubCommand};
 use dirs::data_dir;
 use runas::Command;
+use std::fs::File;
+use std::io::{Read, Write};
 use symlink::{remove_symlink_dir, symlink_dir};
+use yaml_rust::{Yaml, YamlLoader};
 
 mod git;
 
 const VERSION: &str = "0.2.0";
 const REPO_URL: &str = "https://github.com/MCOfficer/endless-sky-plugins.git";
+const INDEX_URL: &str =
+    "https://raw.githubusercontent.com/MCOfficer/es-plugin-manager/master/plugins.yml";
 const APP_INFO: AppInfo = AppInfo {
     name: "ESPIM",
     author: "MCOfficer",
@@ -110,6 +117,59 @@ fn get_repo_dir(verbose: bool) -> PathBuf {
     repo_dir
 }
 
+fn fetch_url_contents(url: &str, verbose: bool) -> Result<String, reqwest::Error> {
+    if verbose {
+        println!("Attempting to fetch content of {}", url);
+    }
+    reqwest::get(INDEX_URL)?.text()
+}
+
+fn get_index_path(verbose: bool) -> PathBuf {
+    let repo_dir = get_app_dir(AppDataType::UserCache, &APP_INFO, "plugins.yml")
+        .expect("app_dirs failed with an error");
+    if verbose {
+        println!(
+            "app_dirs returned {} as index file path",
+            repo_dir.to_string_lossy()
+        );
+    }
+    repo_dir
+}
+
+fn update_index(verbose: bool) {
+    println!("Getting latest index");
+    let index_path = get_index_path(verbose);
+    match fetch_url_contents(INDEX_URL, verbose) {
+        Err(e) => {
+            println!("Error fetching index: {}", e);
+        }
+        Ok(content) => {
+            if verbose {
+                println!("Writing to {}", index_path.to_string_lossy());
+            }
+            let mut file = File::create(index_path.as_path()).expect("Failed to open index file");
+            file.write_all(content.as_bytes())
+                .expect("Failed to write to index file");
+        }
+    }
+}
+
+fn get_index(verbose: bool) -> Yaml {
+    let index_path = get_index_path(verbose);
+    update_index(verbose);
+    if verbose {
+        println!("Reading index from {}", index_path.to_string_lossy());
+    }
+    let mut contents = String::new();
+    File::open(index_path.as_path())
+        .expect("Failed to open index file")
+        .read_to_string(&mut contents)
+        .expect("Failed to read from index file");
+    println!("{}", contents);
+    YamlLoader::load_from_str(contents.as_str()).expect("Failed to parse index file as YAML")[0]
+        .clone()
+}
+
 fn init(verbose: bool) {
     let repo_dir = get_repo_dir(verbose);
     if repo_dir.exists() {
@@ -124,13 +184,8 @@ fn init(verbose: bool) {
 }
 
 fn update(verbose: bool) {
-    let repo_dir = get_repo_dir(verbose);
-    if !repo_dir.exists() && verbose {
-        println!("Repo directory does not exist. Did you run 'espim init'?");
-        return;
-    }
-    git::update_repo(repo_dir, verbose);
-    println!("Done.");
+    update_index(verbose);
+    println!("Done");
 }
 
 fn upgrade(verbose: bool) {
