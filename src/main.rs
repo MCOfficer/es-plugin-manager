@@ -203,22 +203,17 @@ fn upgrade(verbose: bool) {
 }
 
 fn list(verbose: bool) {
-    let repo = git::open_repo(get_repo_dir(verbose), verbose);
-    let submodules = repo.submodules().expect("Failed to load Submodules");
+    let index = get_index(verbose);
     println!("{: ^11}|{: ^40}|{:^45}", "Installed", "Name", "Version");
     println!("{:-<11}|{:-<40}|{:-<45}", "", "", "");
-    for submodule in &submodules {
-        let version = submodule.head_id().unwrap().to_string();
-        let installed = if is_installed(submodule.name().unwrap()) {
-            "Yes"
-        } else {
-            "No"
-        };
+    for plugin in index.as_vec().expect("Index is not an array") {
+        let name = plugin["name"].as_str().unwrap();
+        let installed = if is_installed(name) { "Yes" } else { "No" };
         println!(
             "{: ^11}|  {: <38}|  {: <43}",
             installed,
-            submodule.name().unwrap(),
-            version
+            name,
+            plugin["version"].as_str().unwrap()
         );
     }
 }
