@@ -1,23 +1,26 @@
 extern crate app_dirs;
 extern crate clap;
-extern crate git2;
-extern crate symlink;
 extern crate dirs;
+extern crate git2;
 extern crate runas;
+extern crate symlink;
 extern crate yaml_rust;
 
 use std::path::PathBuf;
 
 use app_dirs::*;
 use clap::{App, Arg, SubCommand};
-use git2::{Repository, ResetType};
-use symlink::{remove_symlink_dir, symlink_dir};
 use dirs::data_dir;
+use git2::{Repository, ResetType};
 use runas::Command;
+use symlink::{remove_symlink_dir, symlink_dir};
 
 const VERSION: &str = "0.2.0";
 const REPO_URL: &str = "https://github.com/MCOfficer/endless-sky-plugins.git";
-const APP_INFO: AppInfo = AppInfo{name: "ESPIM", author: "MCOfficer"};
+const APP_INFO: AppInfo = AppInfo {
+    name: "ESPIM",
+    author: "MCOfficer",
+};
 
 fn main() {
     let matches = App::new("Endless Sky Plug-In Manager")
@@ -82,8 +85,10 @@ fn main() {
 }
 
 fn get_plugin_dir() -> PathBuf {
-    data_dir().expect("dirs failed to find data_dir")
-        .join("endless-sky").join("plugins")
+    data_dir()
+        .expect("dirs failed to find data_dir")
+        .join("endless-sky")
+        .join("plugins")
 }
 
 fn get_install_path(name: &str) -> PathBuf {
@@ -98,7 +103,10 @@ fn get_repo_dir(verbose: bool) -> PathBuf {
     let repo_dir = get_app_dir(AppDataType::UserCache, &APP_INFO, "repo")
         .expect("app_dirs failed with an error");
     if verbose {
-        println!("app_dirs returned {} as repo directory", repo_dir.to_string_lossy());
+        println!(
+            "app_dirs returned {} as repo directory",
+            repo_dir.to_string_lossy()
+        );
     }
     repo_dir
 }
@@ -112,24 +120,33 @@ fn open_repo(repo_dir: PathBuf, verbose: bool) -> Repository {
 
 fn update_repo(repo_dir: PathBuf, verbose: bool) {
     let repo = open_repo(repo_dir, verbose);
-    let mut remote = repo.find_remote("origin").expect("Failed to find remote 'origin'");
-    remote.fetch(&["master"], None, None).expect("Failed to fetch repository");
+    let mut remote = repo
+        .find_remote("origin")
+        .expect("Failed to find remote 'origin'");
+    remote
+        .fetch(&["master"], None, None)
+        .expect("Failed to fetch repository");
 
-    let mut master_ref = repo.find_reference("refs/heads/master")
+    let mut master_ref = repo
+        .find_reference("refs/heads/master")
         .expect("Failed to get master reference");
-    let remote_master_ref = repo.find_reference("refs/remotes/origin/master")
+    let remote_master_ref = repo
+        .find_reference("refs/remotes/origin/master")
         .expect("Failed to get remote master reference");
-    let remote_master_commit = remote_master_ref.peel_to_commit()
+    let remote_master_commit = remote_master_ref
+        .peel_to_commit()
         .expect("Failed to peel remote master reference");
 
     repo.checkout_tree(remote_master_commit.as_object(), None)
         .expect("Failed to checkout tree");
-    master_ref.set_target(remote_master_commit.id(), "Fast-Forwarding")
+    master_ref
+        .set_target(remote_master_commit.id(), "Fast-Forwarding")
         .expect("Failed to set master ref target");
     let mut head = repo.head().expect("Failed to find HEAD"); // By now, the reference is stale
     head.set_target(remote_master_commit.id(), "Fast-Forwarding")
         .expect("Failed to set HEAD target");
-    repo.reset(&remote_master_commit.into_object(), ResetType::Hard, None).expect("Failed to perform hard reset");
+    repo.reset(&remote_master_commit.into_object(), ResetType::Hard, None)
+        .expect("Failed to perform hard reset");
 }
 
 fn init(verbose: bool) {
@@ -163,7 +180,9 @@ fn upgrade(verbose: bool) {
     for mut submodule in submodules {
         if is_installed(submodule.name().unwrap()) {
             println!("=> Updating {}", submodule.name().unwrap().to_string());
-            submodule.update(true, None).expect("Failed to update submodule");
+            submodule
+                .update(true, None)
+                .expect("Failed to update submodule");
         }
     }
     println!("Done.")
@@ -176,29 +195,47 @@ fn list(verbose: bool) {
     println!("{:-<11}|{:-<40}|{:-<45}", "", "", "");
     for submodule in &submodules {
         let version = submodule.head_id().unwrap().to_string();
-        let installed = if is_installed(submodule.name().unwrap()) { "Yes" } else { "No" };
-        println!("{: ^11}|  {: <38}|  {: <43}", installed, submodule.name().unwrap(), version);
+        let installed = if is_installed(submodule.name().unwrap()) {
+            "Yes"
+        } else {
+            "No"
+        };
+        println!(
+            "{: ^11}|  {: <38}|  {: <43}",
+            installed,
+            submodule.name().unwrap(),
+            version
+        );
     }
 }
 
 fn install(name: &str, verbose: bool) {
     let install_path = get_install_path(name);
-    println!("Attempting to install '{}' as '{}'",
-             name, install_path.file_name().unwrap().to_string_lossy());
+    println!(
+        "Attempting to install '{}' as '{}'",
+        name,
+        install_path.file_name().unwrap().to_string_lossy()
+    );
     if is_installed(name) {
         println!("Link exists - {} is already installed? Aborting", name);
         return;
     }
 
     let repo = open_repo(get_repo_dir(verbose), verbose);
-    let mut submodule = repo.find_submodule(name)
+    let mut submodule = repo
+        .find_submodule(name)
         .expect("Plug-In not found in submodules");
-    submodule.update(true, None).expect("Failed to update submodule");
+    submodule
+        .update(true, None)
+        .expect("Failed to update submodule");
 
     let source_path = get_repo_dir(verbose).join(submodule.path());
     if verbose {
-        println!("Linking '{}' to '{}'",
-                 source_path.to_string_lossy(), install_path.to_string_lossy());
+        println!(
+            "Linking '{}' to '{}'",
+            source_path.to_string_lossy(),
+            install_path.to_string_lossy()
+        );
     }
 
     if cfg!(windows) {
@@ -206,8 +243,13 @@ fn install(name: &str, verbose: bool) {
             println!("Using Windows workaround");
         }
         let status = Command::new("cmd")
-            .args(&["/C", "mklink", "/D",
-                install_path.to_str().unwrap(), source_path.to_str().unwrap()])
+            .args(&[
+                "/C",
+                "mklink",
+                "/D",
+                install_path.to_str().unwrap(),
+                source_path.to_str().unwrap(),
+            ])
             .status()
             .expect("Failed to create Symlink");
         if verbose {
@@ -217,8 +259,7 @@ fn install(name: &str, verbose: bool) {
             panic!("mklink returned non-zero exit status - Failed to create Symlink")
         }
     } else {
-        symlink_dir(source_path, install_path)
-            .expect("Failed to create Symlink");
+        symlink_dir(source_path, install_path).expect("Failed to create Symlink");
     }
 
     println!("Done.")
