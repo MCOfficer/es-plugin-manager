@@ -248,6 +248,8 @@ fn install(identifier: &str, verbose: bool) {
     if !repo_path.exists() {
         git::clone(url, &repo_path);
     }
+    git::checkout_repo_at(&repo_path, plugin["version"].as_str().unwrap(), verbose);
+
     if verbose {
         println!(
             "Linking '{}' to '{}'",
@@ -255,7 +257,6 @@ fn install(identifier: &str, verbose: bool) {
             link_path.to_string_lossy()
         );
     }
-
     if cfg!(windows) {
         if verbose {
             println!("Using Windows workaround");
