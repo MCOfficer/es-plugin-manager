@@ -185,17 +185,16 @@ fn update(verbose: bool) {
 }
 
 fn upgrade(verbose: bool) {
-    let repo = git::open_repo(&get_espim_plugin_dir(verbose), verbose);
-    let submodules = repo.submodules().expect("Failed to load Submodules");
-    for mut submodule in submodules {
-        if is_installed(submodule.name().unwrap(), verbose) {
-            println!("=> Updating {}", submodule.name().unwrap().to_string());
-            submodule
-                .update(true, None)
-                .expect("Failed to update submodule");
+    let index = get_index(verbose);
+    for plugin in index.as_vec().expect("Index is not an array") {
+        let name = plugin["name"].as_str().unwrap();
+        let version = plugin["version"].as_str().unwrap();
+        if is_installed(name, verbose) {
+            println!("\n{} -> {}", name, version);
+            git::checkout_repo_at(&get_repo_path(name, verbose),version , verbose);
         }
     }
-    println!("Done.")
+    println!("\nDone.")
 }
 
 fn list(verbose: bool) {
