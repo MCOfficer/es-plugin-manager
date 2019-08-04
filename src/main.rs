@@ -17,6 +17,7 @@ use std::fs::File;
 use std::io::{Read, Write};
 use symlink::{remove_symlink_dir, symlink_dir};
 use yaml_rust::{Yaml, YamlLoader};
+use std::path::Path;
 
 mod git;
 
@@ -49,8 +50,16 @@ fn main() {
                 .index(1)
             )
         )
+        .subcommand(SubCommand::with_name("purge")
+            .about("Removes a plug-in from the disk entirely.")
+            .arg(Arg::with_name("PLUGIN")
+                .help("The plug-in to purge.")
+                .required(true)
+                .index(1)
+            )
+        )
         .subcommand(SubCommand::with_name("remove")
-            .about("Removes a plug-in. The plug-in stays on the disk, but is removed from the plug-in folder.")
+            .about("Removes a plug-in. The plug-in stays on the disk, but is removed from the ES plug-in folder.")
             .alias("uninstall")
             .arg(Arg::with_name("PLUGIN")
                 .help("The plug-in to remove.")
@@ -78,6 +87,8 @@ fn main() {
         list(verbose);
     } else if let Some(matches) = matches.subcommand_matches("install") {
         install(matches.value_of("PLUGIN").unwrap(), verbose);
+    } else if let Some(matches) = matches.subcommand_matches("purge") {
+        purge(matches.value_of("PLUGIN").unwrap(), verbose);
     } else if let Some(matches) = matches.subcommand_matches("remove") {
         remove(matches.value_of("PLUGIN").unwrap(), verbose);
     } else {
@@ -191,7 +202,7 @@ fn upgrade(verbose: bool) {
         let version = plugin["version"].as_str().unwrap();
         if is_installed(name, verbose) {
             println!("\n{} -> {}", name, version);
-            git::checkout_repo_at(&get_repo_path(name, verbose),version , verbose);
+            git::checkout_repo_at(&get_repo_path(name, verbose), version, verbose);
         }
     }
     println!("\nDone.")
@@ -294,5 +305,50 @@ fn remove(name: &str, verbose: bool) {
     }
 
     remove_symlink_dir(link).expect("Failed to remove Symlink");
+    println!("Done.");
+}
+
+fn fix_metadata_dir(dir: &Path) {
+    for entry in std::fs::read_dir(dir).unwrap() {
+        let buf = entry.unwrap().path();
+        let e = buf.as_path();
+        if e.is_dir() {
+            fix_metadata_dir(e);
+        }
+        let mut perms = std::fs::metadata(e).expect("Failed to get metadata").permissions();
+        perms.set_readonly(false);
+        std::fs::set_permissions(e, perms).expect("Failed to set repo permissions");
+    }
+}
+
+fn purge(name: &str, verbose: bool) {
+    let repo_path = get_repo_path(name, verbose);
+    let link = get_install_path(name, verbose);
+
+    if !repo_path.exists() {
+        println!("{} is not installed? Aborting", name);
+        return;
+    }
+
+    if link.exists() {
+        if verbose {
+            println!("Removing Symlink '{}'", link.to_string_lossy());
+        }
+        remove_symlink_dir(link).expect("Failed to remove Symlink");
+    }
+
+    println!("The directory {} and all its contents will be removed. Enter 'y' to proceed, anything else to abort", repo_path.to_string_lossy()); //careful now
+    let mut buffer = String::new();
+    std::io::stdin()
+        .read_line(&mut buffer)
+        .expect("Failed to read from stdin");
+    if buffer.trim().to_lowercase() == "y" {
+        if cfg!(windows) {
+            println!("Using Windows workaround");
+            fix_metadata_dir(repo_path.as_path());
+        }
+        std::fs::remove_dir_all(&repo_path).expect("Failed to remove directory");
+    }
+
     println!("Done.");
 }
