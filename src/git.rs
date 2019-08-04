@@ -4,18 +4,19 @@ use git2::{Repository, ResetType};
 
 use std::path::PathBuf;
 
-pub fn clone(repo_url: &str, repo_dir: PathBuf) -> Repository {
+pub fn clone(repo_url: &str, repo_dir: &PathBuf) -> Repository {
     Repository::clone(repo_url, repo_dir).expect("Failed to Clone Repository")
 }
 
-pub fn open_repo(repo_dir: PathBuf, verbose: bool) -> Repository {
+pub fn open_repo(repo_dir: &PathBuf, verbose: bool) -> Repository {
     if verbose {
         ("Opening Repository {}", repo_dir.to_string_lossy());
     };
     Repository::open(repo_dir.as_path()).expect("Failed to open Repository")
 }
 
-pub fn update_repo(repo_dir: PathBuf, verbose: bool) {
+// TODO: actually check out at a certain commit/tag
+pub fn checkout_repo_at(repo_dir: &PathBuf, verbose: bool) {
     let repo = open_repo(repo_dir, verbose);
     let mut remote = repo
         .find_remote("origin")
