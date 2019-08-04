@@ -4,12 +4,13 @@ extern crate git2;
 extern crate symlink;
 extern crate dirs;
 extern crate runas;
+extern crate yaml_rust;
 
 use std::path::PathBuf;
 
 use app_dirs::*;
 use clap::{App, Arg, SubCommand};
-use git2::Repository;
+use git2::{Repository, ResetType};
 use symlink::{remove_symlink_dir, symlink_dir};
 use dirs::data_dir;
 use runas::Command;
@@ -27,6 +28,9 @@ fn main() {
         )
         .subcommand(SubCommand::with_name("update")
             .about("Updates the local plug-In repository.")
+        )
+        .subcommand(SubCommand::with_name("upgrade")
+            .about("Upgrades all installed and  plug-ins")
         )
         .subcommand(SubCommand::with_name("list")
             .about("Lists all available plug-ins.")
@@ -64,6 +68,8 @@ fn main() {
         init(verbose);
     } else if let Some(_matches) = matches.subcommand_matches("update") {
         update(verbose);
+    } else if let Some(_matches) = matches.subcommand_matches("upgrade") {
+        upgrade(verbose);
     } else if let Some(_matches) = matches.subcommand_matches("list") {
         list(verbose);
     } else if let Some(matches) = matches.subcommand_matches("install") {
@@ -97,12 +103,33 @@ fn get_repo_dir(verbose: bool) -> PathBuf {
     repo_dir
 }
 
-fn open_repo(verbose: bool) -> Repository {
-    let repo_dir = get_repo_dir(verbose);
+fn open_repo(repo_dir: PathBuf, verbose: bool) -> Repository {
     if verbose {
         ("Opening Repository {}", repo_dir.to_string_lossy());
     };
     Repository::open(repo_dir.as_path()).expect("Failed to open Repository")
+}
+
+fn update_repo(repo_dir: PathBuf, verbose: bool) {
+    let repo = open_repo(repo_dir, verbose);
+    let mut remote = repo.find_remote("origin").expect("Failed to find remote 'origin'");
+    remote.fetch(&["master"], None, None).expect("Failed to fetch repository");
+
+    let mut master_ref = repo.find_reference("refs/heads/master")
+        .expect("Failed to get master reference");
+    let remote_master_ref = repo.find_reference("refs/remotes/origin/master")
+        .expect("Failed to get remote master reference");
+    let remote_master_commit = remote_master_ref.peel_to_commit()
+        .expect("Failed to peel remote master reference");
+
+    repo.checkout_tree(remote_master_commit.as_object(), None)
+        .expect("Failed to checkout tree");
+    master_ref.set_target(remote_master_commit.id(), "Fast-Forwarding")
+        .expect("Failed to set master ref target");
+    let mut head = repo.head().expect("Failed to find HEAD"); // By now, the reference is stale
+    head.set_target(remote_master_commit.id(), "Fast-Forwarding")
+        .expect("Failed to set HEAD target");
+    repo.reset(&remote_master_commit.into_object(), ResetType::Hard, None).expect("Failed to perform hard reset");
 }
 
 fn init(verbose: bool) {
@@ -126,31 +153,24 @@ fn update(verbose: bool) {
         println!("Repo directory does not exist. Did you run 'espim init'?");
         return;
     }
-
-    let repo = open_repo(verbose);
-    let mut remote = repo.find_remote("origin").expect("Failed to find remote 'origin'");
-    remote.fetch(&["master"], None, None).expect("Failed to fetch repository");
-
-    let mut master_ref = repo.find_reference("refs/heads/master")
-        .expect("Failed to get master reference");
-    let remote_master_ref = repo.find_reference("refs/remotes/origin/master")
-        .expect("Failed to get remote master reference");
-    let remote_master_commit = remote_master_ref.peel_to_commit()
-        .expect("Failed to peel remote master reference");
-
-    repo.checkout_tree(remote_master_commit.as_object(), None)
-        .expect("Failed to checkout tree");
-    master_ref.set_target(remote_master_commit.id(), "Fast-Forwarding")
-        .expect("Failed to set master ref target");
-    let mut head = repo.head().expect("Failed to find HEAD"); // By now, the reference is stale
-    head.set_target(remote_master_commit.id(), "Fast-Forwarding")
-        .expect("Failed to set HEAD target");
-
+    update_repo(repo_dir, verbose);
     println!("Done.");
 }
 
+fn upgrade(verbose: bool) {
+    let repo = open_repo(get_repo_dir(verbose), verbose);
+    let submodules = repo.submodules().expect("Failed to load Submodules");
+    for mut submodule in submodules {
+        if is_installed(submodule.name().unwrap()) {
+            println!("=> Updating {}", submodule.name().unwrap().to_string());
+            submodule.update(true, None).expect("Failed to update submodule");
+        }
+    }
+    println!("Done.")
+}
+
 fn list(verbose: bool) {
-    let repo = open_repo(verbose);
+    let repo = open_repo(get_repo_dir(verbose), verbose);
     let submodules = repo.submodules().expect("Failed to load Submodules");
     println!("{: ^11}|{: ^40}|{:^45}", "Installed", "Name", "Version");
     println!("{:-<11}|{:-<40}|{:-<45}", "", "", "");
@@ -170,7 +190,7 @@ fn install(name: &str, verbose: bool) {
         return;
     }
 
-    let repo = open_repo(verbose);
+    let repo = open_repo(get_repo_dir(verbose), verbose);
     let mut submodule = repo.find_submodule(name)
         .expect("Plug-In not found in submodules");
     submodule.update(true, None).expect("Failed to update submodule");
