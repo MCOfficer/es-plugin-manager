@@ -1,10 +1,10 @@
 # es-plugin-manager (ESPIM)
-A Proof of concept client for [endless-sky-plugins](https://github.com/MCOfficer/endless-sky-plugins).
+A Proof of concept Plug-In Manager for [Endless Sky](https://endless-sky.github.io).
 
 ## Usage
 ```ShellSession
 $ espim -h
-Endless Sky Plug-In Manager 0.2.0
+Endless Sky Plug-In Manager 0.3.0
 A Proof-of-Concept Plug-In Manager for Endless Sky.
 
 USAGE:
@@ -17,14 +17,12 @@ FLAGS:
 
 SUBCOMMANDS:
     help       Prints this message or the help of the given subcommand(s)
-    init       Clones the plug-In repository. Use before anything else.
     install    Installs a plug-in.
     list       Lists all available plug-ins.
-    remove     Removes a plug-in. The Plug-In stays on the disk, but is removed from the plug-in folder.
-    update     Updates the local plug-In repository.
-
-$ espim init
-Done.
+    purge      Removes a plug-in from the disk entirely.
+    remove     Removes a plug-in. The plug-in stays on the disk, but is removed from the ES plug-in folder.
+    update     Updates the local plug-in repository.
+    upgrade    Upgrades all installed and plug-ins
 
 $ espim list
  Installed |                  Name                  |                   Version
@@ -39,6 +37,7 @@ Attempting to install world-forge as [ESPIM] world-forge
 Done.
 ```
 ![And it works!](https://i.imgur.com/pn3wdWV.png)
+
 ## Building
 
 1. Install [rustup](https://rustup.rs/) (Choose the default values unless you know better)
