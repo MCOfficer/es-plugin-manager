@@ -4,7 +4,7 @@ A Proof of concept Plug-In Manager for [Endless Sky](https://endless-sky.github.
 ## Usage
 ```ShellSession
 $ espim -h
-Endless Sky Plug-In Manager 0.3.0
+Endless Sky Plug-In Manager 0.3.1
 A Proof-of-Concept Plug-In Manager for Endless Sky.
 
 USAGE:

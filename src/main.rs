@@ -21,7 +21,7 @@ use std::path::Path;
 
 mod git;
 
-const VERSION: &str = "0.3.0";
+const VERSION: &str = "0.3.1";
 const INDEX_URL: &str =
     "https://raw.githubusercontent.com/MCOfficer/es-plugin-manager/master/plugins.yml";
 const APP_INFO: AppInfo = AppInfo {
