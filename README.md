@@ -1,4 +1,4 @@
-# es-plugin-manager (ESPIM)
+# es-plugin-manager (ESPIM) [![Build Status](https://travis-ci.org/MCOfficer/es-plugin-manager.svg?branch=master)](https://travis-ci.org/MCOfficer/es-plugin-manager)
 A Proof of concept Plug-In Manager for [Endless Sky](https://endless-sky.github.io).
 
 ## Usage
