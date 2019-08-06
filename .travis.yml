@@ -1,0 +1,75 @@
+language: rust
+rust:
+- stable
+matrix:
+  include:
+  - os: linux
+    dist: bionic
+    env:
+    - PRE_OPENSSL_CONFIG="setarch i386"
+    - I686_UNKNOWN_LINUX_GNU_OPENSSL_DIR=$TRAVIS_BUILD_DIR/openssl32
+    - TARGET1=i686-unknown-linux-gnu
+    - TARGET2=x86_64-unknown-linux-gnu
+  - os: osx
+    env:
+    - I686_APPLE_DARWIN_OPENSSL_DIR=$TRAVIS_BUILD_DIR/openssl32
+    - X86_64_APPLE_DARWIN_OPENSSL_DIR=/usr/local/opt/openssl@1.1
+    - TARGET1=i686-apple-darwin
+    - TARGET2=x86_64-apple-darwin
+    addons:
+      homebrew:
+        packages:
+          - openssl@1.1
+        update: true
+  - os: windows
+    env:
+    - EXE_EXT=.exe
+    - TARGET1=i686-pc-windows-msvc
+    - TARGET2=x86_64-pc-windows-msvc
+before_script:
+  # Workaround until the apt addon works on bionic: https://github.com/travis-ci/travis-build/pull/1754
+  - | 
+    if [ $TRAVIS_OS_NAME = linux ]; then 
+      sudo apt-get update 
+      sudo apt-get -y install gcc-multilib
+    fi
+  - |
+    if [ $TRAVIS_OS_NAME = osx ] || [ $TRAVIS_OS_NAME = linux ]; then
+      curl https://www.openssl.org/source/openssl-1.1.0k.tar.gz | tar xz
+      cd openssl-1.1.0k
+      CFLAGS="-arch i386"
+      LDFLAGS="-arch i386"
+      KERNEL_BITS=32 $PRE_OPENSSL_CONFIG ./config --prefix=$TRAVIS_BUILD_DIR/openssl32
+      make
+      make install
+    fi
+script:
+  - rustup toolchain install stable-$TARGET1
+  - rustup target add $TARGET1
+  - cargo build --release -v --target $TARGET1
+  - rustup toolchain install stable-$TARGET2
+  - rustup target add $TARGET2
+  - cargo build --release -v --target $TARGET2
+before_deploy:
+- cd $TRAVIS_BUILD_DIR
+- mv target/$TARGET1/release/espim$EXE_EXT espim-v$TRAVIS_TAG-$TARGET1$EXE_EXT
+- mv target/$TARGET2/release/espim$EXE_EXT espim-v$TRAVIS_TAG-$TARGET2$EXE_EXT
+deploy:
+  provider: releases
+  skip_cleanup: true
+  api_key:
+    secure: E6AyvrQ79e5cM73AIerRYbEyX6GSNPni78S0fh+7ZIN8b0Ae6zKuBEN4xL88vRw6qcJcDHroITHwwuh71jaBP4JzrowQMumhFRTWRt0M8MgHVHdTnfEMhE7vjG7YoXR79B87rpJiClXTxfdxdKK0OOy36Fc3lLdcYao+7ncV4R17GwqFLuYVH2mYda95zWtEZUwayq6tE11DNyPD8Gx7VzjVjCYBxeM4q+j6ym6Is7Sh47wsuUojDPlE2/0U+EhNu8H2P7ADcMJrUna6GyKWZT1xo6VoWgS++rhDgtXvHi+WO5rRzKOcV0mMH8JXzyZEXlC0hBuMyM3PokjhU3hSGJ7UTEUp7cBcwRfmo2OVb61eaEt7sz7qDNnsENxUYCyCkfNtALr5fX2eXYn7WzQG+AXYiL2A8lltqiKnycetWqBF7CBwnkFWtAn5yoHW/4l+vuQM9bQoZaaO2mZN8j3CeIRRKMcrqmhFzziC0cTLaFO3teIZptYFfyyxYKF/Ox2HekGpYWYSRcPbXm1lxEZitfOvgV+o8vKRfkt+048FMwXkq9Jj2fJHaZRl3VtFzBUQoXORjkn94aoYB1X9XlRuEiqh3/1ZKpIMudzivsAwCvmPyRrMY+c5j7TG+QdtuUwWpfgEUipSehOks7ls+JjswO15PsG1nao8bb3wpvODTHQ=
+  file:
+    - espim-v$TRAVIS_TAG-$TARGET1$EXE_EXT
+    - espim-v$TRAVIS_TAG-$TARGET2$EXE_EXT
+  on:
+    tags: true
+    branch: master
+after_success:
+  - wget https://raw.githubusercontent.com/k3rn31p4nic/travis-ci-discord-webhook/master/send.sh
+  - chmod +x send.sh
+  - ./send.sh success $WEBHOOK_URL
+after_failure:
+  - wget https://raw.githubusercontent.com/k3rn31p4nic/travis-ci-discord-webhook/master/send.sh
+  - chmod +x send.sh
+  - ./send.sh failure $WEBHOOK_URL
